@@ -45,6 +45,7 @@ Capture evidence showing:
 Suggested evidence:
 - Screenshot of build output
 - Screenshot or log of program execution
+<img width="1434" height="525" alt="image" src="https://github.com/user-attachments/assets/c55a0f90-9534-4765-98d6-4eb0923da4c7" />
 
 ---
 
