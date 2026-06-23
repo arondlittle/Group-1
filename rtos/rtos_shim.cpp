@@ -20,118 +20,119 @@
 
 struct TaskHandle
 {
-  std::string name;
-  uint32_t priority;
-  std::thread th;
+    std::string name;
+    uint32_t priority;
+    std::thread th;
 };
 
 static std::mutex g_mutex;
-static std::vector<TaskHandle *> g_tasks;
-static std::atomic<uint32_t> g_ticks{0};
-static std::atomic<bool> g_schedulerStarted{false};
+static std::vector<TaskHandle*> g_tasks;
+static std::atomic<uint32_t> g_ticks{ 0 };
+static std::atomic<bool> g_schedulerStarted{ false };
 
 static void tickThreadFn()
 {
-  using namespace std::chrono;
+    using namespace std::chrono;
 
-  auto last = steady_clock::now();
-  while (g_schedulerStarted.load(std::memory_order_relaxed))
-  {
-    std::this_thread::sleep_for(milliseconds(1)); // scheduler-friendly pacing
-
-    auto now = steady_clock::now();
-    auto elapsedMs = duration_cast<milliseconds>(now - last).count();
-
-    if (elapsedMs > 0)
+    auto last = steady_clock::now();
+    while (g_schedulerStarted.load(std::memory_order_relaxed))
     {
-      g_ticks.fetch_add(static_cast<uint32_t>(elapsedMs),
-                        std::memory_order_relaxed);
-      last = now;
+        std::this_thread::sleep_for(milliseconds(1)); // scheduler-friendly pacing
+
+        auto now = steady_clock::now();
+        auto elapsedMs = duration_cast<milliseconds>(now - last).count();
+
+        if (elapsedMs > 0)
+        {
+            g_ticks.fetch_add(static_cast<uint32_t>(elapsedMs),
+                std::memory_order_relaxed);
+            last = now;
+        }
     }
-  }
 }
 
 int xTaskCreate(TaskFunction_t taskCode,
-                const char *name,
-                uint32_t /*stackWords*/,
-                void *params,
-                uint32_t priority,
-                TaskHandle_t *outHandle)
+    const char* name,
+    uint32_t /*stackWords*/,
+    void* params,
+    uint32_t priority,
+    TaskHandle_t* outHandle)
 {
-  if (!taskCode || !name)
-    return 0;
+    if (!taskCode || !name)
+        return 0;
 
-  auto *h = new TaskHandle();
-  h->name = name;
-  h->priority = priority;
+    auto* h = new TaskHandle();
+    h->name = name;
+    h->priority = priority;
 
-  // NOTE: This shim does not implement priority scheduling.
-  // It creates native threads; priority is recorded for later modules.
-  h->th = std::thread([taskCode, params, nm = h->name]()
-                      {
-    try {
-      taskCode(params);
-    } catch (...) {
-      std::cerr << "[RTOS] Task '" << nm << "' terminated with an exception.\n";
-    } });
+    // NOTE: This shim does not implement priority scheduling.
+    // It creates native threads; priority is recorded for later modules.
+    h->th = std::thread([taskCode, params, nm = h->name]()
+        {
+            try {
+                taskCode(params);
+            }
+            catch (...) {
+                std::cerr << "[RTOS] Task '" << nm << "' terminated with an exception.\n";
+            } });
 
-  {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    g_tasks.push_back(h);
-  }
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        g_tasks.push_back(h);
+    }
 
-  if (outHandle)
-    *outHandle = h;
-  return 1;
+    if (outHandle)
+        *outHandle = h;
+    return 1;
 }
 
 void vTaskStartScheduler(void)
 {
-  // In a real RTOS, tasks would begin only after the scheduler starts.
-  // Here, threads begin immediately on xTaskCreate. Scheduler manages tick + join.
-  g_schedulerStarted.store(true, std::memory_order_relaxed);
+    // In a real RTOS, tasks would begin only after the scheduler starts.
+    // Here, threads begin immediately on xTaskCreate. Scheduler manages tick + join.
+    g_schedulerStarted.store(true, std::memory_order_relaxed);
 
-  std::thread tickThread(tickThreadFn);
+    std::thread tickThread(tickThreadFn);
 
-  // Wait for all tasks to finish
-  std::vector<TaskHandle *> tasksCopy;
-  {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    tasksCopy = g_tasks;
-  }
+    // Wait for all tasks to finish
+    std::vector<TaskHandle*> tasksCopy;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        tasksCopy = g_tasks;
+    }
 
-  for (auto *t : tasksCopy)
-  {
-    if (t && t->th.joinable())
-      t->th.join();
-  }
+    for (auto* t : tasksCopy)
+    {
+        if (t && t->th.joinable())
+            t->th.join();
+    }
 
-  g_schedulerStarted.store(false, std::memory_order_relaxed);
-  if (tickThread.joinable())
-    tickThread.join();
+    g_schedulerStarted.store(false, std::memory_order_relaxed);
+    if (tickThread.joinable())
+        tickThread.join();
 
-  // cleanup
-  for (auto *t : tasksCopy)
-    delete t;
-  {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    g_tasks.clear();
-  }
+    // cleanup
+    for (auto* t : tasksCopy)
+        delete t;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        g_tasks.clear();
+    }
 }
 
 void vTaskDelay(uint32_t delayMs)
 {
-  std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+    std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
 }
 
 void taskYIELD(void)
 {
-  std::this_thread::yield();
+    std::this_thread::yield();
 }
 
 uint32_t xTaskGetTickCount(void)
 {
-  return g_ticks.load(std::memory_order_relaxed);
+    return g_ticks.load(std::memory_order_relaxed);
 }
 
 // -----------------------------------------------------------------------------
@@ -140,92 +141,92 @@ uint32_t xTaskGetTickCount(void)
 
 struct QueueHandle
 {
-  uint32_t capacity = 0;
-  uint32_t itemSize = 0;
+    uint32_t capacity = 0;
+    uint32_t itemSize = 0;
 
-  std::mutex mtx;
-  std::condition_variable cvNotEmpty;
-  std::condition_variable cvNotFull;
+    std::mutex mtx;
+    std::condition_variable cvNotEmpty;
+    std::condition_variable cvNotFull;
 
-  std::deque<std::vector<uint8_t>> q;
+    std::deque<std::vector<uint8_t>> q;
 };
 
-static bool wait_until(std::condition_variable &cv,
-                       std::unique_lock<std::mutex> &lock,
-                       uint32_t timeoutMs,
-                       const std::function<bool()> &pred)
+static bool wait_until(std::condition_variable& cv,
+    std::unique_lock<std::mutex>& lock,
+    uint32_t timeoutMs,
+    const std::function<bool()>& pred)
 {
-  if (timeoutMs == 0)
-    return pred();
+    if (timeoutMs == 0)
+        return pred();
 
-  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
-  while (!pred())
-  {
-    if (cv.wait_until(lock, deadline) == std::cv_status::timeout)
-      break;
-  }
-  return pred();
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+    while (!pred())
+    {
+        if (cv.wait_until(lock, deadline) == std::cv_status::timeout)
+            break;
+    }
+    return pred();
 }
 
 QueueHandle_t xQueueCreate(uint32_t length, uint32_t itemSize)
 {
-  if (length == 0 || itemSize == 0)
-    return nullptr;
+    if (length == 0 || itemSize == 0)
+        return nullptr;
 
-  auto *h = new QueueHandle();
-  h->capacity = length;
-  h->itemSize = itemSize;
-  return h;
+    auto* h = new QueueHandle();
+    h->capacity = length;
+    h->itemSize = itemSize;
+    return h;
 }
 
-int xQueueSend(QueueHandle_t q, const void *item, uint32_t timeoutMs)
+int xQueueSend(QueueHandle_t q, const void* item, uint32_t timeoutMs)
 {
-  if (!q || !item)
-    return 0;
+    if (!q || !item)
+        return 0;
 
-  std::unique_lock<std::mutex> lock(q->mtx);
+    std::unique_lock<std::mutex> lock(q->mtx);
 
-  auto canPush = [&]()
-  { return q->q.size() < q->capacity; };
+    auto canPush = [&]()
+        { return q->q.size() < q->capacity; };
 
-  if (!wait_until(q->cvNotFull, lock, timeoutMs, canPush))
-    return 0;
+    if (!wait_until(q->cvNotFull, lock, timeoutMs, canPush))
+        return 0;
 
-  std::vector<uint8_t> buf(q->itemSize);
-  std::memcpy(buf.data(), item, q->itemSize);
-  q->q.push_back(std::move(buf));
+    std::vector<uint8_t> buf(q->itemSize);
+    std::memcpy(buf.data(), item, q->itemSize);
+    q->q.push_back(std::move(buf));
 
-  lock.unlock();
-  q->cvNotEmpty.notify_one();
-  return 1;
+    lock.unlock();
+    q->cvNotEmpty.notify_one();
+    return 1;
 }
 
-int xQueueReceive(QueueHandle_t q, void *outItem, uint32_t timeoutMs)
+int xQueueReceive(QueueHandle_t q, void* outItem, uint32_t timeoutMs)
 {
-  if (!q || !outItem)
-    return 0;
+    if (!q || !outItem)
+        return 0;
 
-  std::unique_lock<std::mutex> lock(q->mtx);
+    std::unique_lock<std::mutex> lock(q->mtx);
 
-  auto canPop = [&]()
-  { return !q->q.empty(); };
+    auto canPop = [&]()
+        { return !q->q.empty(); };
 
-  if (!wait_until(q->cvNotEmpty, lock, timeoutMs, canPop))
-    return 0;
+    if (!wait_until(q->cvNotEmpty, lock, timeoutMs, canPop))
+        return 0;
 
-  auto buf = std::move(q->q.front());
-  q->q.pop_front();
+    auto buf = std::move(q->q.front());
+    q->q.pop_front();
 
-  std::memcpy(outItem, buf.data(), q->itemSize);
+    std::memcpy(outItem, buf.data(), q->itemSize);
 
-  lock.unlock();
-  q->cvNotFull.notify_one();
-  return 1;
+    lock.unlock();
+    q->cvNotFull.notify_one();
+    return 1;
 }
 
 void vQueueDelete(QueueHandle_t q)
 {
-  if (!q)
-    return;
-  delete q;
+    if (!q)
+        return;
+    delete q;
 }
