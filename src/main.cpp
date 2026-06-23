@@ -23,36 +23,41 @@
  * main.cpp should remain readable and focused on system setup.
  * ============================================================
  */
-//MODULE 3 TASK B addition
-#include <cstdint>
+//MODULE 3 TASk B addition 
 #include <iostream>
-
 #include "rtos_api.h"
 #include "TaskA.h"
 #include "TaskB.h"
 
-int main() {
-    std::cout << "CESC 450 Module 3 - RTOS Task Coordination\n";
-    std::cout << "Starting scheduler...\n";
+int main()
+{
+    std::cout << "=====================================================\n";
+    std::cout << "CESC 450 Module 3 - Concurrent Avionics RTOS Active\n";
+    std::cout << "=====================================================\n\n";
 
-    // Create Task A (Priority 1)
-    if (!xTaskCreate(vTaskA, "TaskA", 1024, NULL, 1, NULL)) {
-        std::cerr << "Failed to create Task A\n";
+    // Create Task A (Telemetry Simulation)
+    if (!xTaskCreate(vTaskA, "Task_A", 256, nullptr, 1, nullptr))
+    {
+        std::cerr << "CRITICAL: Failed to create Task A\n";
         return 1;
     }
 
-    // Create Task B (Priority 1)
-    if (!xTaskCreate(vTaskB, "TaskB", 1024, NULL, 1, NULL)) {
-        std::cerr << "Failed to create Task B\n";
+    // Create Task B (System Monitor)
+    if (!xTaskCreate(vTaskB, "Task_B", 256, nullptr, 1, nullptr))
+    {
+        std::cerr << "CRITICAL: Failed to create Task B\n";
         return 1;
     }
 
-    // Start the RTOS scheduler
+    std::cout << "Starting background RTOS scheduler...\n\n";
     vTaskStartScheduler();
 
-    // The scheduler never returns; if we get here, something went wrong.
+    // The host shim runs until execution stops or tasks finish
+    std::cout << "\nScheduler exited gracefully.\n";
     return 0;
 }
+
+
 // -----------------------------------------------------------------------------
 // Module 2: Baseline demo tasks (host RTOS shim)
 // These are intentionally simple and observable. In Module 3+, tasks should move
@@ -89,7 +94,7 @@ static void WorkerTask(void *params)
 
 int main()
 {
-  /*
+  
    * TODO (Module 2):
    * - Verify RTOS environment setup (build + run)
    * - Confirm baseline task execution and observable output
@@ -99,7 +104,35 @@ int main()
    * - Assign initial priorities and demonstrate coordination
 
 //MODULE 3 TASk B addition 
+#include <cstdint>
+#include <iostream>
 
+#include "rtos_api.h"
+#include "TaskA.h"
+#include "TaskB.h"
+
+int main() {
+    std::cout << "CESC 450 Module 3 - RTOS Task Coordination\n";
+    std::cout << "Starting scheduler...\n";
+
+    // Create Task A (Priority 1)
+    if (!xTaskCreate(vTaskA, "TaskA", 1024, NULL, 1, NULL)) {
+        std::cerr << "Failed to create Task A\n";
+        return 1;
+    }
+
+    // Create Task B (Priority 1)
+    if (!xTaskCreate(vTaskB, "TaskB", 1024, NULL, 1, NULL)) {
+        std::cerr << "Failed to create Task B\n";
+        return 1;
+    }
+
+    // Start the RTOS scheduler
+    vTaskStartScheduler();
+
+    // The scheduler never returns; if we get here, something went wrong.
+    return 0;
+}
 
    *
    * TODO (Module 4+):
