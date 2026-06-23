@@ -1,0 +1,21 @@
+#include "TaskB.h"
+#include <iostream>
+#include "rtos_api.h"
+
+// Access the shared variable from TaskA
+extern volatile int g_system_cycle_count;
+
+void vTaskB(void *pvParameters) {
+    for (;;) {
+        // Simple coordination: monitor and act
+        if (g_system_cycle_count >= 5) {
+            std::cout << "[Task B] Limit reached! Resetting cycle count." << std::endl;
+            g_system_cycle_count = 0;
+        } else {
+            std::cout << "[Task B] Monitoring system..." << std::endl;
+        }
+        
+        // Yield for 500ms
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
