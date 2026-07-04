@@ -26,7 +26,16 @@ add_executable(rtos_app
   src/main.cpp
   src/tasks/TaskA.cpp
   src/tasks/TaskB.cpp
+  src/shared/timing_shared.cpp
+  src/timing/timing_utils.cpp
 )
+
+target_include_directories(rtos_app PRIVATE 
+include 
+rtos 
+src/shared 
+src/timing)
+
 target_link_libraries(rtos_app PRIVATE rtos_shim)
 
 # Diagnostics
